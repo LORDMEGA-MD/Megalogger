@@ -1,151 +1,187 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Device Status Monitor</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      height: 100vh;
-      background: url("https://files.catbox.moe/c29z2z.jpg") no-repeat center center fixed;
-      background-size: cover;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Device Status Logger — Ripple Edition</title>
+<style>
+html,body{
+  margin:0; padding:0; height:100%; overflow:hidden;
+  font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;
+  color:#e6eef7;
+}
+body{
+  background:url("https://files.catbox.moe/c29z2z.jpg") center/cover no-repeat fixed;
+  position:relative;
+}
 
-    h1 {
-      font-size: 2.5rem;
-      margin-bottom: 20px;
-      text-shadow: 0 0 10px #00ffff;
-    }
+/* Ripple Canvas */
+#rippleCanvas{
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100%;
+  z-index:0;
+}
 
-    .btn {
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(6px);
-      border: 2px solid transparent;
-      border-radius: 12px;
-      padding: 12px 28px;
-      color: #fff;
-      font-size: 1rem;
-      margin: 8px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      animation: neonCycle 3s linear infinite;
-    }
+/* Center Container */
+.main{
+  position:relative;
+  z-index:5;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  height:100%;
+  text-align:center;
+}
 
-    .btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      transform: scale(1.05);
-    }
+/* Neon animated border glow */
+@keyframes neon {
+  0% {box-shadow:0 0 10px #00f0ff, 0 0 20px #00f0ff,0 0 30px #00f0ff;}
+  33% {box-shadow:0 0 10px #ff005c,0 0 20px #ff005c,0 0 30px #ff005c;}
+  66% {box-shadow:0 0 10px #00ff73,0 0 20px #00ff73,0 0 30px #00ff73;}
+  100%{box-shadow:0 0 10px #00f0ff,0 0 20px #00f0ff,0 0 30px #00f0ff;}
+}
 
-    @keyframes neonCycle {
-      0% { box-shadow: 0 0 8px #00ff99; border-color: #00ff99; }
-      33% { box-shadow: 0 0 8px #00ccff; border-color: #00ccff; }
-      66% { box-shadow: 0 0 8px #ff0055; border-color: #ff0055; }
-      100% { box-shadow: 0 0 8px #00ff99; border-color: #00ff99; }
-    }
+button{
+  backdrop-filter:blur(10px);
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.25);
+  color:white;
+  border-radius:12px;
+  padding:12px 20px;
+  font-size:1rem;
+  cursor:pointer;
+  margin:8px;
+  animation:neon 4s linear infinite;
+  transition:transform .2s ease;
+}
+button:hover{transform:scale(1.05);}
 
-    #logSection {
-      width: 90%;
-      max-width: 600px;
-      background: rgba(0, 0, 0, 0.6);
-      border-radius: 10px;
-      margin-top: 20px;
-      padding: 20px;
-      display: none;
-      overflow-y: auto;
-      max-height: 50vh;
-    }
-
-    #logs {
-      white-space: pre-wrap;
-      font-size: 0.9rem;
-      line-height: 1.4;
-    }
-
-    /* Water ripple effect */
-    .ripple {
-      position: absolute;
-      border-radius: 50%;
-      transform: scale(0);
-      animation: ripple-animation 0.8s linear;
-      background: rgba(255, 255, 255, 0.3);
-      pointer-events: none;
-    }
-
-    @keyframes ripple-animation {
-      to {
-        transform: scale(6);
-        opacity: 0;
-      }
-    }
-  </style>
+#logSection{
+  display:none;
+  background:rgba(0,0,0,0.6);
+  backdrop-filter:blur(8px);
+  border-radius:12px;
+  padding:16px;
+  margin-top:20px;
+  max-width:800px;
+  width:90%;
+  height:400px;
+  overflow:auto;
+  text-align:left;
+  white-space:pre-wrap;
+  font-size:13px;
+}
+</style>
 </head>
 <body>
-  <h1>Device Status Monitor</h1>
+<canvas id="rippleCanvas"></canvas>
 
-  <button class="btn" id="fetchDevice">Get Device Status</button>
-  <button class="btn" id="showLogs">View Logs</button>
+<div class="main">
+  <h2>Device Status Logger</h2>
+  <p style="max-width:600px;color:#bcd;text-shadow:0 0 5px #000">Collects and logs full device status (for your own authorized testing only).</p>
 
-  <div id="logSection">
-    <h3>📋 Device Logs</h3>
-    <div id="logs">No logs yet.</div>
+  <div>
+    <button id="collectLocal">Collect Locally</button>
+    <button id="collectSend">Collect &amp; Send</button>
+    <button id="showLogs">View Logs</button>
   </div>
 
-  <script>
-    // Water ripple effect
-    document.addEventListener("click", e => {
-      const ripple = document.createElement("span");
-      ripple.className = "ripple";
-      ripple.style.left = `${e.clientX}px`;
-      ripple.style.top = `${e.clientY}px`;
-      document.body.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 800);
-    });
+  <div id="logSection"><pre id="logOutput"></pre></div>
+</div>
 
-    // Fetch and save device info
-    async function getDeviceInfo() {
-      const info = {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language,
-        online: navigator.onLine,
-        time: new Date().toLocaleString()
-      };
-      await fetch("/log", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(info)
-      });
-      alert("Device status collected ✅");
-    }
+<script>
+// Simple water ripple effect
+const canvas = document.getElementById('rippleCanvas');
+const ctx = canvas.getContext('2d');
+let ripples=[];
+function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
+window.addEventListener('resize',resize);resize();
 
-    // Show logs when key matches
-    async function showLogs() {
-      const key = prompt("Enter access key:");
-      if (key !== "54321") return alert("Access denied ❌");
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ripples.forEach(r=>{
+    r.radius+=1.5;
+    r.alpha-=0.01;
+    ctx.beginPath();
+    ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(${r.color},${r.alpha})`;
+    ctx.lineWidth=2;
+    ctx.stroke();
+  });
+  ripples=ripples.filter(r=>r.alpha>0);
+  requestAnimationFrame(draw);
+}
+draw();
 
-      const res = await fetch("/view?key=" + key);
-      if (!res.ok) return alert("Failed to fetch logs");
-      const data = await res.json();
+function ripple(x,y){
+  const colors=["0,255,255","255,0,90","0,255,100"];
+  ripples.push({x,y,radius:0,alpha:0.7,color:colors[Math.floor(Math.random()*colors.length)]});
+}
+canvas.addEventListener('pointerdown',e=>ripple(e.clientX,e.clientY));
 
-      const logSection = document.getElementById("logSection");
-      const logsDiv = document.getElementById("logs");
-      logsDiv.textContent = data
-        .map(d => `[${d.time}] ${d.platform} | ${d.language} | Online: ${d.online}\nUA: ${d.userAgent}`)
-        .join("\n\n");
+// --------------- DEVICE INFO ---------------
+async function gatherInfo(){
+  const nav=navigator;
+  const info={
+    time:new Date().toISOString(),
+    userAgent:nav.userAgent,
+    platform:nav.platform,
+    languages:nav.languages,
+    cores:nav.hardwareConcurrency,
+    memory:nav.deviceMemory,
+    screen:{width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,colorDepth:screen.colorDepth},
+    viewport:{width:innerWidth,height:innerHeight},
+    timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+    connection:nav.connection?{
+      type:nav.connection.effectiveType,
+      downlink:nav.connection.downlink,
+      rtt:nav.connection.rtt
+    }:null
+  };
+  // Battery
+  if(nav.getBattery){try{const b=await nav.getBattery();info.battery={level:b.level,charging:b.charging}}catch{}}
+  // Geo
+  info.geolocation=await new Promise(r=>{
+    if(!nav.geolocation)return r(null);
+    nav.geolocation.getCurrentPosition(
+      pos=>r({lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy}),
+      err=>r({error:err.message}),
+      {timeout:8000});
+  });
+  // Media devices
+  try{
+    await nav.mediaDevices.getUserMedia({audio:true,video:true});
+    const dev=await nav.mediaDevices.enumerateDevices();
+    info.mediaDevices=dev.map(d=>({kind:d.kind,label:d.label}));
+  }catch(e){info.mediaDevices=[{error:e.message}]}
+  return info;
+}
 
-      logSection.style.display = "block";
-    }
+document.getElementById('collectLocal').onclick=async()=>{
+  const data=await gatherInfo();
+  alert("Device info collected locally.");
+  console.log(data);
+};
+document.getElementById('collectSend').onclick=async()=>{
+  const data=await gatherInfo();
+  await fetch("/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+  alert("Device info sent to server.");
+};
 
-    document.getElementById("fetchDevice").addEventListener("click", getDeviceInfo);
-    document.getElementById("showLogs").addEventListener("click", showLogs);
-  </script>
+// ----- View Logs -----
+document.getElementById('showLogs').onclick=async()=>{
+  const key=prompt("Enter access key:");
+  if(key!=="54321"){alert("Wrong key.");return;}
+  const res=await fetch("/view?key="+key);
+  if(!res.ok){alert("Access denied.");return;}
+  const logs=await res.json();
+  const out=document.getElementById('logOutput');
+  out.textContent=JSON.stringify(logs,null,2);
+  document.getElementById('logSection').style.display='block';
+};
+</script>
 </body>
 </html>
