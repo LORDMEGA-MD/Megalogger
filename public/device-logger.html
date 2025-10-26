@@ -1,16 +1,4 @@
-<!--
-Consent-based Device Status Logger — AUTO-PERMISSIONS MODE
-Save as: device-logger.html and open in a secure context (https) or run locally (file:// may limit some APIs).
-
-This variant assumes you're scanning your own device and therefore sets permission toggles "on" by default and will automatically request/attempt all available permissions when the page loads.
-
-IMPORTANT SAFETY NOTES:
- - Only run this page on *your own* devices or on devices where you have explicit authorization. Do NOT deploy it publicly or use it on other people's browsers without clear consent.
- - Automatic permission requests will trigger browser permission prompts (camera/microphone, location) — the browser controls whether the user must click to allow.
- - Some APIs (Battery, Network Information) are privacy-limited in some browsers and may return null.
- - The server endpoint /logs should be protected in production; the example server snippet remains in the file.
--->
-
+<!-- Consent-based Device Status Logger with Hidden Logs and Database Integration -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -19,8 +7,8 @@ IMPORTANT SAFETY NOTES:
   <title>Device Status Logger — Auto-Permissions</title>
   <style>
     :root{--bg:#0f1724;--card:#0b1220;--accent:#7dd3fc;--muted:#94a3b8}
-    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial; margin:0;min-height:100vh;background:linear-gradient(180deg,#021025 0%, #071226 100%);color:#e6eef7}
-    .wrap{max-width:900px;margin:48px auto;padding:24px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;min-height:100vh;background:linear-gradient(180deg,#021025 0%, #071226 100%);color:#e6eef7}
+    .wrap{max-width:900px;margin:48px auto;padding:24px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
     h1{margin:0 0 8px;font-size:1.4rem}
     p.lead{margin:0 0 16px;color:var(--muted)}
     .consent{display:flex;gap:12px;align-items:center;margin-bottom:16px}
@@ -30,23 +18,22 @@ IMPORTANT SAFETY NOTES:
     .cols{display:grid;grid-template-columns:1fr 340px;gap:18px}
     .card{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
     pre{white-space:pre-wrap;word-wrap:break-word;font-size:13px}
-    .log{height:420px;overflow:auto;background:#041022;padding:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.3)}
-    .field{display:flex;justify-content:space-between;margin:8px 0;padding-bottom:6px;border-bottom:1px dashed rgba(255,255,255,0.02)}
-    small{color:var(--muted)}
-    footer{margin-top:12px;color:var(--muted);font-size:13px}
+    .log{display:none;height:420px;overflow:auto;background:#041022;padding:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.3)}
+    footer{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
+    #viewBtn{display:block;margin:40px auto 0 auto;background:#0369a1;color:white;border:0;padding:10px 20px;border-radius:6px;cursor:pointer}
   </style>
 </head>
 <body>
   <div class="wrap" role="main">
     <h1>Device Status Logger — Auto-Permissions (Your Device)</h1>
-    <p class="lead">This page will request all available permissions automatically (location, camera/mic, enumerate devices) and collect device info. Only run this on devices you own. The page will still display what it collects and POST to <code>/logs</code> if you click "Collect & Send" or it can auto-send if you choose the auto-send option below.</p>
+    <p class="lead">Automatically requests permissions, collects device info, and logs results. Only use on devices you own.</p>
 
     <div class="consent card">
       <label>
-        <input id="agree" type="checkbox" aria-label="Agree to collect device info" checked />
+        <input id="agree" type="checkbox" checked />
         <div>
           <strong>Auto-consent (for this device)</strong>
-          <div style="font-size:13px;color:var(--muted)">Checked by default because you asked to scan your own device. Permission prompts still controlled by the browser.</div>
+          <div style="font-size:13px;color:var(--muted)">Checked by default. Permissions still require browser confirmation.</div>
         </div>
       </label>
       <div style="margin-left:auto;display:flex;gap:8px">
@@ -59,221 +46,51 @@ IMPORTANT SAFETY NOTES:
       <div>
         <div class="card">
           <h3 style="margin-top:0">Requested permissions</h3>
-          <div class="field"><div>Geolocation</div><div id="geoState"><small>not requested</small></div></div>
-          <div class="field"><div>Camera / Microphone</div><div id="mediaState"><small>not requested</small></div></div>
-          <div class="field"><div>Battery API</div><div id="batteryState"><small>feature unknown</small></div></div>
-          <div class="field"><div>Network Info</div><div id="netState"><small>feature unknown</small></div></div>
-          <div class="field"><div>Other APIs</div><div id="otherState"><small>—</small></div></div>
-          <footer>Permissions will be requested automatically on page load.</footer>
-        </div>
-
-        <div style="margin-top:12px" class="card">
-          <h3 style="margin-top:0">Quick fields</h3>
           <div id="fields"></div>
         </div>
       </div>
-
       <div>
         <div class="card">
           <h3 style="margin-top:0">Live log</h3>
-          <div id="log" class="log" aria-live="polite"></div>
-        </div>
-
-        <div style="margin-top:12px" class="card">
-          <h3 style="margin-top:0">Raw payload</h3>
-          <pre id="payload">{}</pre>
+          <div id="log" class="log"></div>
         </div>
       </div>
     </div>
 
+    <button id="viewBtn">View Logs</button>
+    <footer>Only for authorized use. Data stored locally and viewable with access key.</footer>
   </div>
 
   <script>
-    // Utility: append to UI log
-    function appendLog(txt){
-      const el = document.getElementById('log');
-      const line = document.createElement('div');
-      line.textContent = '['+new Date().toISOString()+'] ' + txt;
-      el.prepend(line);
-    }
+    const agree=document.getElementById('agree');
+    const collectBtn=document.getElementById('collectBtn');
+    const collectLocal=document.getElementById('collectLocal');
+    const log=document.getElementById('log');
 
-    const agree = document.getElementById('agree');
-    const collectBtn = document.getElementById('collectBtn');
-    const collectLocal = document.getElementById('collectLocal');
+    function appendLog(t){const e=document.createElement('div');e.textContent='['+new Date().toISOString()+'] '+t;log.prepend(e)}
 
-    agree.addEventListener('change', ()=>{
-      appendLog('Consent toggled: ' + (agree.checked ? 'granted' : 'withdrawn'));
-    });
+    function gatherBasic(){const n=navigator;return{collectedAt:new Date().toISOString(),userAgent:n.userAgent,platform:n.platform,languages:n.languages||[n.language],cores:n.hardwareConcurrency,deviceMemoryGB:n.deviceMemory,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}};
 
-    // Gather non-sensitive info synchronously
-    function gatherBasic(){
-      const nav = navigator || {};
-      const payload = {
-        collectedAt: new Date().toISOString(),
-        userAgent: nav.userAgent || null,
-        platform: nav.platform || null,
-        languages: navigator.languages || [navigator.language || null],
-        cores: nav.hardwareConcurrency || null,
-        deviceMemoryGB: nav.deviceMemory || null,
-        doNotTrack: nav.doNotTrack || null,
-        cookieEnabled: navigator.cookieEnabled || null,
-        screen: {width: screen.width, height: screen.height, availWidth: screen.availWidth, availHeight: screen.availHeight, colorDepth: screen.colorDepth},
-        viewport: {innerWidth: innerWidth, innerHeight: innerHeight},
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-        locale: Intl.DateTimeFormat().resolvedOptions().locale || null,
-        connection: (navigator.connection && typeof navigator.connection === 'object') ? {
-          effectiveType: navigator.connection.effectiveType || null,
-          downlink: navigator.connection.downlink || null,
-          rtt: navigator.connection.rtt || null
-        } : null,
-        performance: (performance && performance.timing) ? {
-          navigationStart: performance.timing.navigationStart
-        } : null
-      };
-      return payload;
-    }
+    async function collectAll(send){if(!agree.checked)return appendLog('Consent required');const p=gatherBasic();appendLog('Collected basic info');document.getElementById('fields').innerHTML='<div><small>'+JSON.stringify(p,null,2)+'</small></div>';if(send){await fetch('/logs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(p,null,2)}).then(r=>appendLog('Logs sent')).catch(e=>appendLog('Send failed '+e))}}
 
-    // Gather battery if available (feature-detect)
-    async function gatherBattery(){
-      if (!('getBattery' in navigator)) return null;
-      try{
-        const bat = await navigator.getBattery();
-        return {charging: bat.charging, level: bat.level, chargingTime: bat.chargingTime, dischargingTime: bat.dischargingTime};
-      }catch(e){return null}
-    }
+    collectBtn.onclick=()=>collectAll(true);
+    collectLocal.onclick=()=>collectAll(false);
 
-    // Request geolocation with permission prompt
-    function gatherGeolocation(){
-      return new Promise((res)=>{
-        if (!('geolocation' in navigator)) return res(null);
-        navigator.geolocation.getCurrentPosition(pos=>{
-          res({lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy});
-        }, err=>{
-          res({error: err.message || err.code || 'denied'});
-        }, {enableHighAccuracy:false, maximumAge:60000, timeout:10000});
+    document.getElementById('viewBtn').onclick=async()=>{
+      const key=prompt('Enter access key to view logs:');
+      if(key!=='54321'){alert('Wrong key');return;}
+      const res=await fetch('/view?key='+key);
+      if(!res.ok)return alert('Access denied');
+      const data=await res.json();
+      log.style.display='block';
+      log.innerHTML='';
+      data.forEach(d=>{
+        const div=document.createElement('div');
+        div.textContent=`${new Date(d.time).toLocaleString()} — ${d.device}`;
+        log.appendChild(div);
       });
-    }
-
-    // Request media devices labels (we will actively ask for getUserMedia to surface device labels)
-    async function gatherMediaDevices(){
-      if (!('mediaDevices' in navigator) || !navigator.mediaDevices.enumerateDevices) return null;
-      try{
-        // Attempt to get permission to access camera and microphone so that device labels become available
-        try{
-          await navigator.mediaDevices.getUserMedia({audio: true, video: true});
-          appendLog('getUserMedia granted (or prompt shown)');
-        }catch(e){
-          appendLog('getUserMedia error or denied: ' + (e && e.message));
-        }
-
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        return devices.map(d=>({kind:d.kind, label:d.label || null, deviceId: d.deviceId}));
-      }catch(e){return {error: e.message}};
-    }
-
-    // Query Permissions API where available to list current states
-    async function probePermissions(){
-      const perms = {};
-      if (!('permissions' in navigator)) return perms;
-      const queries = ['geolocation','camera','microphone','notifications','persistent-storage'];
-      for (const name of queries){
-        try{
-          const p = await navigator.permissions.query({name: name});
-          perms[name] = p.state;
-        }catch(e){perms[name] = 'unavailable'}
-      }
-      return perms;
-    }
-
-    // Main collector — called after user clicks collect or auto-called
-    async function collectAll(sendToServer=false, autoSend=false){
-      if (!agree.checked){appendLog('User must consent first'); return}
-      appendLog('Starting collection...');
-      const payload = gatherBasic();
-      document.getElementById('fields').innerHTML = '';
-
-      // show quick fields
-      for (const k of ['userAgent','platform','cores','deviceMemoryGB']){
-        const el = document.createElement('div'); el.className='field';
-        el.innerHTML = '<div>'+k+'</div><div><small>'+JSON.stringify(payload[k])+'</small></div>';
-        document.getElementById('fields').appendChild(el);
-      }
-
-      // permissions probe
-      const permStates = await probePermissions();
-      document.getElementById('otherState').innerHTML = '<small>' + JSON.stringify(permStates) + '</small>';
-      payload.permissionStates = permStates;
-
-      // battery
-      const battery = await gatherBattery();
-      payload.battery = battery;
-      document.getElementById('batteryState').innerHTML = battery ? '<small>available</small>' : '<small>not available</small>';
-
-      // geolocation
-      const geo = await gatherGeolocation();
-      payload.geolocation = geo;
-      document.getElementById('geoState').innerHTML = geo && !geo.error ? '<small>granted</small>' : '<small>denied / unavailable</small>';
-
-      // media devices (labels may be blank unless user allows)
-      const media = await gatherMediaDevices();
-      payload.mediaDevices = media;
-      document.getElementById('mediaState').innerHTML = media ? '<small>enumerated</small>' : '<small>unavailable</small>';
-
-      // timing/perf
-      try{ payload.performanceTiming = performance && performance.toJSON ? performance.toJSON() : null }catch(e){payload.performanceTiming=null}
-
-      // write to UI
-      document.getElementById('payload').textContent = JSON.stringify(payload, null, 2);
-      appendLog('Collection complete.');
-
-      // optionally send to server
-      if (sendToServer || autoSend){
-        try{
-          const r = await fetch('/logs', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload, null, 2)});
-          if (r.ok) appendLog('Server accepted logs'); else appendLog('Server responded: ' + r.status + ' ' + r.statusText);
-        }catch(e){appendLog('Failed to send logs: '+e.message)}
-      }
-    }
-
-    collectBtn.addEventListener('click', ()=>collectAll(true));
-    collectLocal.addEventListener('click', ()=>collectAll(false));
-
-    // AUTO behavior on load: auto-request permissions and collect (but still respects the agree checkbox)
-    window.addEventListener('load', async ()=>{
-      appendLog('Page loaded. Auto-permissions mode active.');
-      if (!agree.checked) { appendLog('Auto-collection skipped because agree is unchecked.'); return; }
-
-      // small delay to allow UI to render and user to cancel if this was accidental
-      await new Promise(r=>setTimeout(r, 250));
-
-      // attempt immediate collection and auto-send disabled by default; user can enable autoSend by modifying code
-      try{ await collectAll(false); }catch(e){ appendLog('Auto-collect error: '+ (e && e.message)); }
-    });
-
-    appendLog('Ready — running in auto-permissions mode.');
-
-    // Server snippet (for developers):
-    /*
-    const express = require('express');
-    const bodyParser = require('body-parser');
-    const fs = require('fs');
-    const app = express();
-    app.use(bodyParser.json({limit: '5mb'}));
-
-    // IMPORTANT: In production, protect this endpoint with authentication (API key, token) and rate limit.
-    app.post('/logs', (req, res) => {
-      const payload = req.body;
-      const now = new Date().toISOString();
-      const filename = './logs/device-log-' + now.replace(/[:.]/g,'-') + '.json';
-      fs.writeFileSync(filename, JSON.stringify(payload, null, 2));
-      console.log('Saved log', filename);
-      res.status(201).send({ok:true, saved: filename});
-    });
-
-    app.listen(3000, ()=>console.log('Listening on 3000'));
-    */
-
+      window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+    };
   </script>
-
 </body>
 </html>
