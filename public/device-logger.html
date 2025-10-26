@@ -5,55 +5,99 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Device Status Logger</title>
 <style>
-  body{font-family:sans-serif;margin:0;padding:20px;background:#0f1724;color:#e6eef7}
-  h1{margin-bottom:10px}
-  #viewBtn{padding:10px 20px;background:#0369a1;color:white;border:none;border-radius:6px;cursor:pointer}
-  #log{display:none;margin-top:20px;background:#041022;padding:15px;border-radius:8px;overflow:auto;max-height:70vh}
-  .record{border-bottom:1px dashed #555;padding:8px 0}
-  .field{margin:4px 0}
-  .field span{font-weight:bold;color:#7dd3fc}
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: #0f1724;
+    color: #e6eef7;
+  }
+  h1 {
+    margin-bottom: 10px;
+  }
+  #collectBtn {
+    padding: 10px 20px;
+    background: #0369a1;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #log {
+    display: none; /* hidden by default */
+    margin-top: 20px;
+    background: #041022;
+    padding: 15px;
+    border-radius: 8px;
+    overflow: auto;
+    max-height: 80vh;
+  }
+  .record {
+    border-bottom: 1px dashed #555;
+    padding: 8px 0;
+  }
+  .field {
+    margin: 4px 0;
+  }
+  .field span {
+    font-weight: bold;
+    color: #7dd3fc;
+  }
 </style>
 </head>
 <body>
 <h1>Device Status Logger</h1>
-<p>Enter key to view all device logs collected.</p>
-<button id="viewBtn">View Logs</button>
+<p>Click below to fetch the latest logs. Results are hidden until you enter the correct key.</p>
+<button id="collectBtn">Fetch Logs</button>
+
 <div id="log"></div>
 
 <script>
 const logEl = document.getElementById('log');
-document.getElementById('viewBtn').onclick = async ()=>{
-  const key = prompt('Enter access key:').trim();
-  if(!key) return alert('Key required');
+const collectBtn = document.getElementById('collectBtn');
 
-  const res = await fetch('/view?key='+encodeURIComponent(key));
-  if(!res.ok) return alert('Access Denied');
+collectBtn.onclick = async () => {
+  try {
+    // Fetch logs from server (anyone can do this)
+    const res = await fetch('/view'); // fetch without key initially
+    const data = res.ok ? await res.json() : [];
 
-  const data = await res.json();
-  logEl.innerHTML = '';
-  logEl.style.display = 'block';
+    // Prompt for key
+    const key = prompt('Enter access key to view logs:')?.trim();
+    if(key !== '54321') return alert('Access Denied');
 
-  data.forEach(rec=>{
-    const r = document.createElement('div');
-    r.className='record';
-    r.innerHTML = `
-      <div class="field"><span>Time:</span> ${new Date(rec.time).toLocaleString()}</div>
-      <div class="field"><span>Device:</span> ${rec.device}</div>
-      <div class="field"><span>User Agent:</span> ${rec.userAgent}</div>
-      <div class="field"><span>Platform:</span> ${rec.data.platform || ''}</div>
-      <div class="field"><span>Cores:</span> ${rec.data.cores || ''}</div>
-      <div class="field"><span>Memory (GB):</span> ${rec.data.deviceMemoryGB || ''}</div>
-      <div class="field"><span>Languages:</span> ${rec.data.languages ? rec.data.languages.join(', ') : ''}</div>
-      <div class="field"><span>Timezone:</span> ${rec.data.timeZone || ''}</div>
-      <div class="field"><span>Geolocation:</span> ${rec.data.geolocation ? JSON.stringify(rec.data.geolocation) : 'N/A'}</div>
-      <div class="field"><span>Battery:</span> ${rec.data.battery ? JSON.stringify(rec.data.battery) : 'N/A'}</div>
-      <div class="field"><span>Media Devices:</span> ${rec.data.mediaDevices ? JSON.stringify(rec.data.mediaDevices) : 'N/A'}</div>
-    `;
-    logEl.appendChild(r);
-  });
+    logEl.innerHTML = '';
+    logEl.style.display = 'block';
 
-  alert('✅ Access Granted');
-  window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+    // Sort newest first
+    data.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    data.forEach(rec => {
+      const r = document.createElement('div');
+      r.className = 'record';
+      r.innerHTML = `
+        <div class="field"><span>Time:</span> ${new Date(rec.time).toLocaleString()}</div>
+        <div class="field"><span>Device:</span> ${rec.device}</div>
+        <div class="field"><span>User Agent:</span> ${rec.userAgent}</div>
+        <div class="field"><span>Platform:</span> ${rec.data.platform || 'N/A'}</div>
+        <div class="field"><span>Cores:</span> ${rec.data.cores || 'N/A'}</div>
+        <div class="field"><span>Memory (GB):</span> ${rec.data.deviceMemoryGB || 'N/A'}</div>
+        <div class="field"><span>Languages:</span> ${rec.data.languages ? rec.data.languages.join(', ') : 'N/A'}</div>
+        <div class="field"><span>Timezone:</span> ${rec.data.timeZone || 'N/A'}</div>
+        <div class="field"><span>Geolocation:</span> ${rec.data.geolocation ? JSON.stringify(rec.data.geolocation) : 'N/A'}</div>
+        <div class="field"><span>Battery:</span> ${rec.data.battery ? JSON.stringify(rec.data.battery) : 'N/A'}</div>
+        <div class="field"><span>Media Devices:</span> ${rec.data.mediaDevices ? JSON.stringify(rec.data.mediaDevices) : 'N/A'}</div>
+      `;
+      logEl.appendChild(r);
+    });
+
+    alert('✅ Access Granted');
+    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+
+  } catch(e) {
+    console.error(e);
+    alert('Error fetching logs');
+  }
 };
 </script>
 </body>
