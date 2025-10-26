@@ -3,161 +3,244 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Device Status Logger — Auto Permissions</title>
+<title>Device Status Logger — Neon Glacial</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
   body {
-    font-family: sans-serif;
+    font-family: 'Inter', sans-serif;
     margin: 0;
-    padding: 20px;
-    background: #0f1724;
-    color: #e6eef7;
+    overflow: hidden;
+    height: 100vh;
+    background: url('https://files.catbox.moe/c29z2z.jpg') center/cover no-repeat;
+    position: relative;
   }
-  h1 { margin-bottom: 10px; }
+
+  /* Frosted glass overlay */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(14px) saturate(180%);
+    background-color: rgba(10, 15, 25, 0.55);
+  }
+
+  h1 {
+    color: #7dd3fc;
+    font-size: 1.8rem;
+    text-shadow: 0 0 15px #38bdf8;
+    margin-bottom: 20px;
+    animation: neonPulse 2.5s infinite alternate;
+  }
+
   .btn {
-    padding: 10px 20px;
-    margin-right: 10px;
-    border: none;
-    border-radius: 6px;
+    padding: 12px 26px;
+    margin: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #e6eef7;
+    font-size: 15px;
     cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    backdrop-filter: blur(10px);
+    background: rgba(255,255,255,0.05);
+    box-shadow: 0 0 8px rgba(125,211,252,0.2);
   }
-  .btn.primary { background: #0369a1; color: white; }
+
+  .btn.primary {
+    background: linear-gradient(90deg,#0369a1,#0891b2);
+    color: white;
+    box-shadow: 0 0 20px rgba(56,189,248,0.4);
+  }
+
+  .btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(56,189,248,0.5);
+  }
+
   #log {
-    display: none; /* hidden until correct key */
+    display: none;
+    width: 90%;
+    max-width: 700px;
     margin-top: 20px;
-    background: #041022;
-    padding: 15px;
-    border-radius: 8px;
-    overflow: auto;
-    max-height: 70vh;
+    background: rgba(4,16,34,0.7);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: 60vh;
+    color: #e6eef7;
+    box-shadow: 0 0 20px rgba(56,189,248,0.3);
   }
+
   .record {
-    border-bottom: 1px dashed #555;
+    border-bottom: 1px dashed rgba(125,211,252,0.2);
     padding: 8px 0;
   }
-  .field { margin: 4px 0; }
-  .field span { font-weight: bold; color: #7dd3fc; }
-  #showKeyBtn {
-    margin-top: 10px;
-    background: #0891b2;
-    color: white;
+
+  .field span {
+    color: #7dd3fc;
+    font-weight: 600;
+  }
+
+  @keyframes neonPulse {
+    from { text-shadow: 0 0 8px #38bdf8; }
+    to { text-shadow: 0 0 22px #0ea5e9; }
+  }
+
+  /* Ripple effect canvas */
+  canvas#ripple {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
   }
 </style>
 </head>
 <body>
 
-<h1>Device Status Logger — Auto-Permissions Mode</h1>
-<p>Permissions are requested automatically. Use buttons below to collect device info. Logs remain hidden until correct key is entered.</p>
+<canvas id="ripple"></canvas>
 
-<button id="collectBtn" class="btn primary">Collect & Send</button>
-<button id="collectLocal" class="btn">Collect Locally</button>
-<button id="showKeyBtn" class="btn">Show Logs</button>
+<div class="overlay">
+  <h1>Device Status Logger — Neon Mode</h1>
+  <div>
+    <button id="collectBtn" class="btn primary">Collect & Send</button>
+    <button id="collectLocal" class="btn">Collect Locally</button>
+    <button id="showKeyBtn" class="btn">Show Logs</button>
+  </div>
 
-<div id="log"></div>
+  <div id="log"></div>
+</div>
 
 <script>
-let collectedPayloads = []; // store collected device info here
+let collectedPayloads = [];
 
-// Display collected logs in organized format
 function displayLogs() {
   const logEl = document.getElementById('log');
   logEl.innerHTML = '';
   logEl.style.display = 'block';
 
-  collectedPayloads.forEach(payload => {
-    const r = document.createElement('div');
-    r.className = 'record';
-    r.innerHTML = `
-      <div class="field"><span>Time:</span> ${new Date(payload.collectedAt).toLocaleString()}</div>
-      <div class="field"><span>Device:</span> ${payload.platform || 'N/A'}</div>
-      <div class="field"><span>User Agent:</span> ${payload.userAgent || 'N/A'}</div>
-      <div class="field"><span>Cores:</span> ${payload.cores || 'N/A'}</div>
-      <div class="field"><span>Memory (GB):</span> ${payload.deviceMemoryGB || 'N/A'}</div>
-      <div class="field"><span>Languages:</span> ${payload.languages ? payload.languages.join(', ') : 'N/A'}</div>
-      <div class="field"><span>Timezone:</span> ${payload.timeZone || 'N/A'}</div>
-      <div class="field"><span>Geolocation:</span> ${payload.geolocation ? JSON.stringify(payload.geolocation) : 'N/A'}</div>
-      <div class="field"><span>Battery:</span> ${payload.battery ? JSON.stringify(payload.battery) : 'N/A'}</div>
-      <div class="field"><span>Media Devices:</span> ${payload.mediaDevices ? JSON.stringify(payload.mediaDevices) : 'N/A'}</div>
-    `;
-    logEl.appendChild(r);
-  });
+  collectedPayloads
+    .sort((a,b)=>new Date(b.collectedAt)-new Date(a.collectedAt))
+    .forEach(payload => {
+      const r = document.createElement('div');
+      r.className = 'record';
+      r.innerHTML = `
+        <div class="field"><span>Time:</span> ${new Date(payload.collectedAt).toLocaleString()}</div>
+        <div class="field"><span>Device:</span> ${payload.platform || 'N/A'}</div>
+        <div class="field"><span>User Agent:</span> ${payload.userAgent || 'N/A'}</div>
+        <div class="field"><span>Cores:</span> ${payload.cores || 'N/A'}</div>
+        <div class="field"><span>Memory:</span> ${payload.deviceMemoryGB || 'N/A'} GB</div>
+        <div class="field"><span>Languages:</span> ${payload.languages?.join(', ') || 'N/A'}</div>
+        <div class="field"><span>Timezone:</span> ${payload.timeZone || 'N/A'}</div>
+        <div class="field"><span>Geo:</span> ${payload.geolocation ? JSON.stringify(payload.geolocation) : 'N/A'}</div>
+        <div class="field"><span>Battery:</span> ${payload.battery ? JSON.stringify(payload.battery) : 'N/A'}</div>
+        <div class="field"><span>Media Devices:</span> ${payload.mediaDevices ? JSON.stringify(payload.mediaDevices) : 'N/A'}</div>
+      `;
+      logEl.appendChild(r);
+    });
 }
 
-// Gather basic device info
 function gatherBasic(){
-  const nav = navigator || {};
+  const nav = navigator;
   return {
     collectedAt: new Date().toISOString(),
     userAgent: nav.userAgent || null,
     platform: nav.platform || null,
-    languages: navigator.languages || [navigator.language || null],
+    languages: nav.languages || [nav.language || null],
     cores: nav.hardwareConcurrency || null,
     deviceMemoryGB: nav.deviceMemory || null,
-    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null
   };
 }
 
-// Gather battery info
 async function gatherBattery(){
   if (!('getBattery' in navigator)) return null;
-  try {
-    const bat = await navigator.getBattery();
-    return {charging: bat.charging, level: bat.level};
-  } catch(e){ return null; }
+  try { const b = await navigator.getBattery(); return {charging:b.charging, level:b.level}; }
+  catch(e){ return null; }
 }
 
-// Gather geolocation
 function gatherGeolocation(){
-  return new Promise(res => {
-    if(!('geolocation' in navigator)) return res(null);
-    navigator.geolocation.getCurrentPosition(pos => {
-      res({lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy});
-    }, err => res({error: err.message || 'denied'}));
+  return new Promise(res=>{
+    if(!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(pos=>res({lat:pos.coords.latitude,lon:pos.coords.longitude,acc:pos.coords.accuracy}),
+    err=>res({error:err.message}));
   });
 }
 
-// Gather media devices
 async function gatherMediaDevices(){
-  if (!('mediaDevices' in navigator) || !navigator.mediaDevices.enumerateDevices) return null;
+  if(!navigator.mediaDevices?.enumerateDevices) return null;
   try {
-    await navigator.mediaDevices.getUserMedia({audio:true, video:true}).catch(()=>{}); // request permission
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices.map(d=>({kind:d.kind, label:d.label || null}));
+    await navigator.mediaDevices.getUserMedia({audio:true,video:true}).catch(()=>{});
+    const d = await navigator.mediaDevices.enumerateDevices();
+    return d.map(x=>({kind:x.kind,label:x.label||null}));
   } catch(e){ return null; }
 }
 
-// Collect all device info
-async function collectDevice(sendToServer=false){
+async function collectDevice(send=false){
   const payload = gatherBasic();
   payload.battery = await gatherBattery();
   payload.geolocation = await gatherGeolocation();
   payload.mediaDevices = await gatherMediaDevices();
-
   collectedPayloads.push(payload);
-
-  if(sendToServer){
-    try{
-      await fetch('/logs',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload)});
-      console.log('Payload sent to server');
-    }catch(e){ console.error('Error sending payload:', e); }
+  if(send){
+    try{ await fetch('/logs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}); }
+    catch(e){ console.error(e); }
   }
-
-  alert('Device info collected. Logs remain hidden until correct key is entered.');
+  alert('Device info collected — logs hidden until key entered.');
 }
 
-// Button handlers
-document.getElementById('collectBtn').onclick = ()=>collectDevice(true);
-document.getElementById('collectLocal').onclick = ()=>collectDevice(false);
-
-document.getElementById('showKeyBtn').onclick = ()=>{
-  const key = prompt('Enter key to display logs:')?.trim();
-  if(key === '54321'){
-    displayLogs();
-    alert('✅ Access Granted');
-  } else {
-    alert('Access Denied');
-  }
+document.getElementById('collectBtn').onclick=()=>collectDevice(true);
+document.getElementById('collectLocal').onclick=()=>collectDevice(false);
+document.getElementById('showKeyBtn').onclick=async()=>{
+  const key=prompt('Enter access key:')?.trim();
+  if(key==='54321'){
+    try{
+      const res=await fetch('/logs?key=54321');
+      const data=await res.json();
+      collectedPayloads=data;
+      displayLogs();
+      alert('✅ Access granted — showing logs');
+    }catch(e){alert('Error fetching logs');}
+  } else alert('Access denied');
 };
 
+/* 🌊 Ripple Effect */
+const canvas = document.getElementById('ripple');
+const ctx = canvas.getContext('2d');
+let ripples = [];
+
+function resize() {
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < ripples.length; i++) {
+    const r = ripples[i];
+    ctx.beginPath();
+    ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(125,211,252,${r.alpha})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    r.radius += 2;
+    r.alpha -= 0.015;
+    if (r.alpha <= 0) ripples.splice(i, 1);
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+
+window.addEventListener('pointerdown', e=>{
+  ripples.push({x:e.clientX, y:e.clientY, radius:0, alpha:1});
+});
 </script>
 </body>
 </html>
