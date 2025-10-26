@@ -1,56 +1,64 @@
+// server.js
 import express from "express";
-import fs from "fs/promises";
+import fs from "fs-extra";
 import path from "path";
-import bodyParser from "body-parser";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
-const ACCESS_KEY = "54321";
-const __dirname = process.cwd();
-const DB_PATH = path.join(__dirname, "db.json");
-const PUBLIC_PATH = path.join(__dirname, "public");
+const PORT = process.env.PORT || 10000;
+const DB_FILE = path.join(__dirname, "db.json");
 
-// ✅ Serve your frontend files
-app.use(express.static(PUBLIC_PATH));
-app.use(bodyParser.json({ limit: "10mb" }));
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-// Ensure db.json exists
-async function initDB() {
+// Ensure db.json exists and is valid
+if (!fs.existsSync(DB_FILE)) {
+  fs.writeJsonSync(DB_FILE, []);
+} else {
   try {
-    await fs.access(DB_PATH);
+    fs.readJsonSync(DB_FILE);
   } catch {
-    await fs.writeFile(DB_PATH, "[]", "utf8");
+    console.warn("⚠️ db.json corrupted, resetting...");
+    fs.writeJsonSync(DB_FILE, []);
   }
 }
-await initDB();
 
-// ✅ Save log
-app.post("/logs", async (req, res) => {
+// POST /log → save device info
+app.post("/log", async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(DB_PATH, "utf8") || "[]");
-    data.push(req.body);
-    await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
-    res.json({ ok: true });
+    const logs = await fs.readJson(DB_FILE);
+    logs.push(req.body);
+    await fs.writeJson(DB_FILE, logs, { spaces: 2 });
+    res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error saving log:", err);
+    res.status(500).json({ error: "Failed to save log" });
   }
 });
 
-// ✅ View logs with key
-app.get("/logs", async (req, res) => {
+// GET /view?key=54321 → fetch logs
+app.get("/view", async (req, res) => {
   const { key } = req.query;
-  if (key !== ACCESS_KEY) return res.status(403).send("Access denied");
+  if (key !== "54321") {
+    return res.status(403).json({ error: "Access denied" });
+  }
   try {
-    const data = JSON.parse(await fs.readFile(DB_PATH, "utf8") || "[]");
-    res.json(data);
+    const logs = await fs.readJson(DB_FILE);
+    logs.sort((a, b) => new Date(b.time) - new Date(a.time));
+    res.json(logs);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error reading logs:", err);
+    res.status(500).json({ error: "Failed to read logs" });
   }
 });
 
-// ✅ Default route to serve your HTML
-app.get("/", (req, res) => {
-  res.sendFile(path.join(PUBLIC_PATH, "device-logger.html"));
+// Catch-all route for HTML (prevents “Cannot GET /” errors)
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`✅ Server running on port ${port}`));
+app.listen(PORT, () =>
+  console.log(`✅ Server running on port ${PORT}`)
+);
