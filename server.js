@@ -1,74 +1,54 @@
 import express from "express";
+import fs from "fs/promises";
 import bodyParser from "body-parser";
-import fs from "fs-extra";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const ACCESS_KEY = process.env.ACCESS_KEY || "54321";
+const DB_PATH = path.join(process.cwd(), "db.json");
+const ACCESS_KEY = "54321";
 
-const LOG_DIR = path.join(__dirname, "logs");
-const DB_FILE = path.join(__dirname, "db.json");
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(express.static(".")); // serve HTML directly
 
-fs.ensureDirSync(LOG_DIR);
-
-// Ensure db.json exists and valid
-if (!fs.existsSync(DB_FILE)) fs.writeJsonSync(DB_FILE, []);
-else {
-  try { fs.readJsonSync(DB_FILE); }
-  catch(e) { fs.writeJsonSync(DB_FILE, []); }
+// ✅ Ensure db.json exists
+async function initDB() {
+  try {
+    await fs.access(DB_PATH);
+  } catch {
+    await fs.writeFile(DB_PATH, "[]", "utf8");
+  }
 }
+await initDB();
 
-app.use(bodyParser.json({ limit: "5mb" }));
-app.use(express.static(path.join(__dirname, "public")));
-
-// Serve main page
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "device-logger.html"));
-});
-
-// Save logs
+// 🔹 Append logs into same db.json
 app.post("/logs", async (req, res) => {
   try {
-    const payload = req.body;
-    const now = new Date().toISOString();
-    const fileName = `device-log-${now.replace(/[:.]/g,"-")}.json`;
+    const log = req.body;
+    if (!log.collectedAt) log.collectedAt = new Date().toISOString();
 
-    const record = {
-      id: Date.now(),
-      time: now,
-      device: payload.platform || "unknown",
-      userAgent: payload.userAgent || "",
-      data: payload
-    };
+    const data = JSON.parse(await fs.readFile(DB_PATH, "utf8") || "[]");
+    data.push(log);
+    await fs.writeFile(DB_PATH, JSON.stringify(data, null, 2));
 
-    await fs.writeJson(path.join(LOG_DIR, fileName), record, { spaces: 2 });
-
-    const db = await fs.readJson(DB_FILE);
-    db.push(record);
-    await fs.writeJson(DB_FILE, db, { spaces: 2 });
-
+    console.log("✅ Log saved:", log.platform || "Unknown Device");
     res.status(201).json({ ok: true });
-  } catch(e) {
-    console.error("Error saving log:", e);
-    res.status(500).json({ ok: false });
+  } catch (err) {
+    console.error("❌ Error saving log:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// View logs (protected)
-app.get("/view", async (req,res)=>{
-  const key = (req.query.key||"").trim();
-  if(key !== ACCESS_KEY) return res.status(403).send("Forbidden");
-
-  const db = await fs.readJson(DB_FILE);
-  db.sort((a,b)=>new Date(b.time)-new Date(a.time));
-  res.json(db);
+// 🔹 View logs (requires correct key)
+app.get("/logs", async (req, res) => {
+  const { key } = req.query;
+  if (key !== ACCESS_KEY) return res.status(403).send("Access denied");
+  try {
+    const data = JSON.parse(await fs.readFile(DB_PATH, "utf8") || "[]");
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.get("*",(req,res)=> res.redirect("/"));
-
-app.listen(PORT, ()=>console.log(`✅ Server running on port ${PORT}`));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log("Server running on port " + port));
