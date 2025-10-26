@@ -1,124 +1,60 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Device Status Logger — Auto-Permissions</title>
-  <style>
-    :root{--bg:#0f1724;--card:#0b1220;--accent:#7dd3fc;--muted:#94a3b8}
-    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;min-height:100vh;background:linear-gradient(180deg,#021025 0%,#071226 100%);color:#e6eef7}
-    .wrap{max-width:900px;margin:48px auto;padding:24px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
-    h1{margin:0 0 8px;font-size:1.4rem}
-    p.lead{margin:0 0 16px;color:var(--muted)}
-    .consent{display:flex;gap:12px;align-items:center;margin-bottom:16px}
-    label{display:flex;gap:8px;align-items:center}
-    .btn{background:transparent;border:1px solid rgba(125,211,252,0.12);padding:10px 14px;border-radius:8px;color:var(--accent);cursor:pointer}
-    .btn.primary{background:linear-gradient(90deg,#0369a1,#0891b2);color:white;border:0}
-    .cols{display:grid;grid-template-columns:1fr 340px;gap:18px}
-    .card{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)}
-    pre{white-space:pre-wrap;word-wrap:break-word;font-size:13px}
-    .log{display:none;height:420px;overflow:auto;background:#041022;padding:12px;border-radius:8px;border:1px solid rgba(0,0,0,0.3)}
-    footer{margin-top:12px;color:var(--muted);font-size:13px;text-align:center}
-    #viewBtn{display:block;margin:40px auto 0 auto;background:#0369a1;color:white;border:0;padding:10px 20px;border-radius:6px;cursor:pointer}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Device Status Logger</title>
+<style>
+  body{font-family:sans-serif;margin:0;padding:20px;background:#0f1724;color:#e6eef7}
+  h1{margin-bottom:10px}
+  #viewBtn{padding:10px 20px;background:#0369a1;color:white;border:none;border-radius:6px;cursor:pointer}
+  #log{display:none;margin-top:20px;background:#041022;padding:15px;border-radius:8px;overflow:auto;max-height:70vh}
+  .record{border-bottom:1px dashed #555;padding:8px 0}
+  .field{margin:4px 0}
+  .field span{font-weight:bold;color:#7dd3fc}
+</style>
 </head>
 <body>
-  <div class="wrap" role="main">
-    <h1>Device Status Logger — Auto-Permissions (Your Device)</h1>
-    <p class="lead">Automatically requests permissions, collects device info, and logs results. Only use on devices you own.</p>
+<h1>Device Status Logger</h1>
+<p>Enter key to view all device logs collected.</p>
+<button id="viewBtn">View Logs</button>
+<div id="log"></div>
 
-    <div class="consent card">
-      <label>
-        <input id="agree" type="checkbox" checked />
-        <div>
-          <strong>Auto-consent (for this device)</strong>
-          <div style="font-size:13px;color:var(--muted)">Checked by default. Permissions still require browser confirmation.</div>
-        </div>
-      </label>
-      <div style="margin-left:auto;display:flex;gap:8px">
-        <button id="collectBtn" class="btn primary">Collect & Send</button>
-        <button id="collectLocal" class="btn">Collect Locally</button>
-      </div>
-    </div>
+<script>
+const logEl = document.getElementById('log');
+document.getElementById('viewBtn').onclick = async ()=>{
+  const key = prompt('Enter access key:').trim();
+  if(!key) return alert('Key required');
 
-    <div class="cols">
-      <div>
-        <div class="card">
-          <h3 style="margin-top:0">Requested permissions</h3>
-          <div id="fields"></div>
-        </div>
-      </div>
-      <div>
-        <div class="card">
-          <h3 style="margin-top:0">Live log</h3>
-          <div id="log" class="log"></div>
-        </div>
-      </div>
-    </div>
+  const res = await fetch('/view?key='+encodeURIComponent(key));
+  if(!res.ok) return alert('Access Denied');
 
-    <button id="viewBtn">View Logs</button>
-    <footer>Only for authorized use. Data stored locally and viewable with access key.</footer>
-  </div>
+  const data = await res.json();
+  logEl.innerHTML = '';
+  logEl.style.display = 'block';
 
-  <script>
-    const agree = document.getElementById('agree');
-    const collectBtn = document.getElementById('collectBtn');
-    const collectLocal = document.getElementById('collectLocal');
-    const log = document.getElementById('log');
+  data.forEach(rec=>{
+    const r = document.createElement('div');
+    r.className='record';
+    r.innerHTML = `
+      <div class="field"><span>Time:</span> ${new Date(rec.time).toLocaleString()}</div>
+      <div class="field"><span>Device:</span> ${rec.device}</div>
+      <div class="field"><span>User Agent:</span> ${rec.userAgent}</div>
+      <div class="field"><span>Platform:</span> ${rec.data.platform || ''}</div>
+      <div class="field"><span>Cores:</span> ${rec.data.cores || ''}</div>
+      <div class="field"><span>Memory (GB):</span> ${rec.data.deviceMemoryGB || ''}</div>
+      <div class="field"><span>Languages:</span> ${rec.data.languages ? rec.data.languages.join(', ') : ''}</div>
+      <div class="field"><span>Timezone:</span> ${rec.data.timeZone || ''}</div>
+      <div class="field"><span>Geolocation:</span> ${rec.data.geolocation ? JSON.stringify(rec.data.geolocation) : 'N/A'}</div>
+      <div class="field"><span>Battery:</span> ${rec.data.battery ? JSON.stringify(rec.data.battery) : 'N/A'}</div>
+      <div class="field"><span>Media Devices:</span> ${rec.data.mediaDevices ? JSON.stringify(rec.data.mediaDevices) : 'N/A'}</div>
+    `;
+    logEl.appendChild(r);
+  });
 
-    function appendLog(txt) {
-      const line = document.createElement('div');
-      line.textContent = `[${new Date().toISOString()}] ${txt}`;
-      log.prepend(line);
-    }
-
-    function gatherBasic() {
-      const nav = navigator;
-      return {
-        collectedAt: new Date().toISOString(),
-        userAgent: nav.userAgent,
-        platform: nav.platform,
-        languages: nav.languages || [nav.language],
-        cores: nav.hardwareConcurrency,
-        deviceMemoryGB: nav.deviceMemory,
-        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      };
-    }
-
-    async function collectAll(send) {
-      if (!agree.checked) return appendLog('Consent required');
-      const payload = gatherBasic();
-      appendLog('Collected basic info');
-      document.getElementById('fields').innerHTML = '<div><small>' + JSON.stringify(payload, null, 2) + '</small></div>';
-
-      if (send) {
-        await fetch('/logs', {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(payload,null,2)})
-          .then(()=>appendLog('Logs sent'))
-          .catch(e=>appendLog('Send failed '+e));
-      }
-    }
-
-    collectBtn.onclick = () => collectAll(true);
-    collectLocal.onclick = () => collectAll(false);
-
-    document.getElementById('viewBtn').onclick = async () => {
-      const key = prompt('Enter access key to view logs:').trim();
-      if (!key) return alert('Key required');
-
-      const res = await fetch('/view?key=' + encodeURIComponent(key));
-      if (!res.ok) return alert('Access Denied');
-
-      const data = await res.json();
-      log.style.display = 'block';
-      log.innerHTML = '';
-      data.forEach(d => {
-        const div = document.createElement('div');
-        div.textContent = `${new Date(d.time).toLocaleString()} — ${d.device}`;
-        log.appendChild(div);
-      });
-      alert('✅ Access Granted');
-      window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
-    };
-  </script>
+  alert('✅ Access Granted');
+  window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+};
+</script>
 </body>
 </html>
