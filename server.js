@@ -11,15 +11,18 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ACCESS_KEY = process.env.ACCESS_KEY || "54321";
 
-// Directories
-const LOG_DIR = process.env.LOG_DIR || path.join(__dirname, "logs");
+const LOG_DIR = path.join(__dirname, "logs");
 const DB_FILE = path.join(__dirname, "db.json");
 
-// Ensure directories exist
 fs.ensureDirSync(LOG_DIR);
-if (!fs.existsSync(DB_FILE)) fs.writeJsonSync(DB_FILE, []);
 
-// Middleware
+// Ensure db.json exists and valid
+if (!fs.existsSync(DB_FILE)) fs.writeJsonSync(DB_FILE, []);
+else {
+  try { fs.readJsonSync(DB_FILE); }
+  catch(e) { fs.writeJsonSync(DB_FILE, []); }
+}
+
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -33,7 +36,7 @@ app.post("/logs", async (req, res) => {
   try {
     const payload = req.body;
     const now = new Date().toISOString();
-    const fileName = `device-log-${now.replace(/[:.]/g, "-")}.json`;
+    const fileName = `device-log-${now.replace(/[:.]/g,"-")}.json`;
 
     const record = {
       id: Date.now(),
@@ -44,31 +47,28 @@ app.post("/logs", async (req, res) => {
     };
 
     await fs.writeJson(path.join(LOG_DIR, fileName), record, { spaces: 2 });
+
     const db = await fs.readJson(DB_FILE);
     db.push(record);
     await fs.writeJson(DB_FILE, db, { spaces: 2 });
 
     res.status(201).json({ ok: true });
-  } catch (e) {
+  } catch(e) {
     console.error("Error saving log:", e);
     res.status(500).json({ ok: false });
   }
 });
 
 // View logs (protected)
-app.get("/view", async (req, res) => {
-  const key = (req.query.key || "").trim();
-  if (key !== ACCESS_KEY) return res.status(403).send("Forbidden");
+app.get("/view", async (req,res)=>{
+  const key = (req.query.key||"").trim();
+  if(key !== ACCESS_KEY) return res.status(403).send("Forbidden");
 
   const db = await fs.readJson(DB_FILE);
-  db.sort((a, b) => new Date(b.time) - new Date(a.time));
+  db.sort((a,b)=>new Date(b.time)-new Date(a.time));
   res.json(db);
 });
 
-// Redirect unknown routes to home
-app.get("*", (req, res) => {
-  res.redirect("/");
-});
+app.get("*",(req,res)=> res.redirect("/"));
 
-// Start server
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(PORT, ()=>console.log(`✅ Server running on port ${PORT}`));
