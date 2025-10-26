@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Device Status Logger</title>
+<title>Device Status Logger — Auto Permissions</title>
 <style>
   body {
     font-family: sans-serif;
@@ -12,93 +12,149 @@
     background: #0f1724;
     color: #e6eef7;
   }
-  h1 {
-    margin-bottom: 10px;
-  }
-  #collectBtn {
+  h1 { margin-bottom: 10px; }
+  .btn {
     padding: 10px 20px;
-    background: #0369a1;
-    color: white;
+    margin-right: 10px;
     border: none;
     border-radius: 6px;
     cursor: pointer;
   }
+  .btn.primary { background: #0369a1; color: white; }
   #log {
-    display: none; /* hidden by default */
+    display: none; /* hidden until correct key */
     margin-top: 20px;
     background: #041022;
     padding: 15px;
     border-radius: 8px;
     overflow: auto;
-    max-height: 80vh;
+    max-height: 70vh;
   }
   .record {
     border-bottom: 1px dashed #555;
     padding: 8px 0;
   }
-  .field {
-    margin: 4px 0;
-  }
-  .field span {
-    font-weight: bold;
-    color: #7dd3fc;
-  }
+  .field { margin: 4px 0; }
+  .field span { font-weight: bold; color: #7dd3fc; }
 </style>
 </head>
 <body>
-<h1>Device Status Logger</h1>
-<p>Click below to fetch the latest logs. Results are hidden until you enter the correct key.</p>
-<button id="collectBtn">Fetch Logs</button>
+
+<h1>Device Status Logger — Auto-Permissions Mode</h1>
+<p>Permissions are requested automatically. Use buttons below to collect device info. Logs remain hidden until correct key is entered.</p>
+
+<button id="collectBtn" class="btn primary">Collect & Send</button>
+<button id="collectLocal" class="btn">Collect Locally</button>
 
 <div id="log"></div>
 
 <script>
-const logEl = document.getElementById('log');
-const collectBtn = document.getElementById('collectBtn');
+let collectedPayloads = []; // store collected device info here
 
-collectBtn.onclick = async () => {
+// Utility to append to log if key is matched
+function displayLogs() {
+  const logEl = document.getElementById('log');
+  logEl.innerHTML = '';
+  logEl.style.display = 'block';
+
+  collectedPayloads.forEach(payload => {
+    const r = document.createElement('div');
+    r.className = 'record';
+    r.innerHTML = `
+      <div class="field"><span>Time:</span> ${new Date(payload.collectedAt).toLocaleString()}</div>
+      <div class="field"><span>Device:</span> ${payload.platform || 'N/A'}</div>
+      <div class="field"><span>User Agent:</span> ${payload.userAgent || 'N/A'}</div>
+      <div class="field"><span>Cores:</span> ${payload.cores || 'N/A'}</div>
+      <div class="field"><span>Memory (GB):</span> ${payload.deviceMemoryGB || 'N/A'}</div>
+      <div class="field"><span>Languages:</span> ${payload.languages ? payload.languages.join(', ') : 'N/A'}</div>
+      <div class="field"><span>Timezone:</span> ${payload.timeZone || 'N/A'}</div>
+      <div class="field"><span>Geolocation:</span> ${payload.geolocation ? JSON.stringify(payload.geolocation) : 'N/A'}</div>
+      <div class="field"><span>Battery:</span> ${payload.battery ? JSON.stringify(payload.battery) : 'N/A'}</div>
+      <div class="field"><span>Media Devices:</span> ${payload.mediaDevices ? JSON.stringify(payload.mediaDevices) : 'N/A'}</div>
+    `;
+    logEl.appendChild(r);
+  });
+}
+
+// Gather basic device info
+function gatherBasic(){
+  const nav = navigator || {};
+  return {
+    collectedAt: new Date().toISOString(),
+    userAgent: nav.userAgent || null,
+    platform: nav.platform || null,
+    languages: navigator.languages || [navigator.language || null],
+    cores: nav.hardwareConcurrency || null,
+    deviceMemoryGB: nav.deviceMemory || null,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+  };
+}
+
+// Gather battery info
+async function gatherBattery(){
+  if (!('getBattery' in navigator)) return null;
   try {
-    // Fetch logs from server (anyone can do this)
-    const res = await fetch('/view'); // fetch without key initially
-    const data = res.ok ? await res.json() : [];
+    const bat = await navigator.getBattery();
+    return {charging: bat.charging, level: bat.level};
+  } catch(e){ return null; }
+}
 
-    // Prompt for key
-    const key = prompt('Enter access key to view logs:')?.trim();
-    if(key !== '54321') return alert('Access Denied');
+// Gather geolocation
+function gatherGeolocation(){
+  return new Promise(res => {
+    if(!('geolocation' in navigator)) return res(null);
+    navigator.geolocation.getCurrentPosition(pos => {
+      res({lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy});
+    }, err => res({error: err.message || 'denied'}));
+  });
+}
 
-    logEl.innerHTML = '';
-    logEl.style.display = 'block';
+// Gather media devices
+async function gatherMediaDevices(){
+  if (!('mediaDevices' in navigator) || !navigator.mediaDevices.enumerateDevices) return null;
+  try {
+    await navigator.mediaDevices.getUserMedia({audio:true, video:true}).catch(()=>{}); // request permission
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.map(d=>({kind:d.kind, label:d.label || null}));
+  } catch(e){ return null; }
+}
 
-    // Sort newest first
-    data.sort((a, b) => new Date(b.time) - new Date(a.time));
+// Collect all device info
+async function collectDevice(sendToServer=false){
+  const payload = gatherBasic();
+  payload.battery = await gatherBattery();
+  payload.geolocation = await gatherGeolocation();
+  payload.mediaDevices = await gatherMediaDevices();
 
-    data.forEach(rec => {
-      const r = document.createElement('div');
-      r.className = 'record';
-      r.innerHTML = `
-        <div class="field"><span>Time:</span> ${new Date(rec.time).toLocaleString()}</div>
-        <div class="field"><span>Device:</span> ${rec.device}</div>
-        <div class="field"><span>User Agent:</span> ${rec.userAgent}</div>
-        <div class="field"><span>Platform:</span> ${rec.data.platform || 'N/A'}</div>
-        <div class="field"><span>Cores:</span> ${rec.data.cores || 'N/A'}</div>
-        <div class="field"><span>Memory (GB):</span> ${rec.data.deviceMemoryGB || 'N/A'}</div>
-        <div class="field"><span>Languages:</span> ${rec.data.languages ? rec.data.languages.join(', ') : 'N/A'}</div>
-        <div class="field"><span>Timezone:</span> ${rec.data.timeZone || 'N/A'}</div>
-        <div class="field"><span>Geolocation:</span> ${rec.data.geolocation ? JSON.stringify(rec.data.geolocation) : 'N/A'}</div>
-        <div class="field"><span>Battery:</span> ${rec.data.battery ? JSON.stringify(rec.data.battery) : 'N/A'}</div>
-        <div class="field"><span>Media Devices:</span> ${rec.data.mediaDevices ? JSON.stringify(rec.data.mediaDevices) : 'N/A'}</div>
-      `;
-      logEl.appendChild(r);
-    });
+  collectedPayloads.push(payload);
 
-    alert('✅ Access Granted');
-    window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
-
-  } catch(e) {
-    console.error(e);
-    alert('Error fetching logs');
+  if(sendToServer){
+    try{
+      await fetch('/logs',{method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(payload)});
+      console.log('Payload sent to server');
+    }catch(e){ console.error('Error sending payload:', e); }
   }
-};
+
+  alert('Device info collected. Logs remain hidden until correct key is entered.');
+}
+
+// Button handlers
+document.getElementById('collectBtn').onclick = ()=>collectDevice(true);
+document.getElementById('collectLocal').onclick = ()=>collectDevice(false);
+
+// Key entry to reveal collected logs
+window.addEventListener('keydown', async (e)=>{
+  if(e.key === 'Enter'){
+    const key = prompt('Enter key to display logs:')?.trim();
+    if(key === '54321'){
+      displayLogs();
+      alert('✅ Access Granted');
+    } else {
+      alert('Access Denied');
+    }
+  }
+});
+
 </script>
 </body>
 </html>
