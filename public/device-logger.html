@@ -36,6 +36,11 @@
   }
   .field { margin: 4px 0; }
   .field span { font-weight: bold; color: #7dd3fc; }
+  #showKeyBtn {
+    margin-top: 10px;
+    background: #0891b2;
+    color: white;
+  }
 </style>
 </head>
 <body>
@@ -45,13 +50,14 @@
 
 <button id="collectBtn" class="btn primary">Collect & Send</button>
 <button id="collectLocal" class="btn">Collect Locally</button>
+<button id="showKeyBtn" class="btn">Show Logs</button>
 
 <div id="log"></div>
 
 <script>
 let collectedPayloads = []; // store collected device info here
 
-// Utility to append to log if key is matched
+// Display collected logs in organized format
 function displayLogs() {
   const logEl = document.getElementById('log');
   logEl.innerHTML = '';
@@ -142,18 +148,15 @@ async function collectDevice(sendToServer=false){
 document.getElementById('collectBtn').onclick = ()=>collectDevice(true);
 document.getElementById('collectLocal').onclick = ()=>collectDevice(false);
 
-// Key entry to reveal collected logs
-window.addEventListener('keydown', async (e)=>{
-  if(e.key === 'Enter'){
-    const key = prompt('Enter key to display logs:')?.trim();
-    if(key === '54321'){
-      displayLogs();
-      alert('✅ Access Granted');
-    } else {
-      alert('Access Denied');
-    }
+document.getElementById('showKeyBtn').onclick = ()=>{
+  const key = prompt('Enter key to display logs:')?.trim();
+  if(key === '54321'){
+    displayLogs();
+    alert('✅ Access Granted');
+  } else {
+    alert('Access Denied');
   }
-});
+};
 
 </script>
 </body>
