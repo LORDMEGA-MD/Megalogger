@@ -1,4 +1,3 @@
-<!-- Consent-based Device Status Logger with Hidden Logs and Database Integration -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,7 +6,7 @@
   <title>Device Status Logger — Auto-Permissions</title>
   <style>
     :root{--bg:#0f1724;--card:#0b1220;--accent:#7dd3fc;--muted:#94a3b8}
-    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;min-height:100vh;background:linear-gradient(180deg,#021025 0%, #071226 100%);color:#e6eef7}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;margin:0;min-height:100vh;background:linear-gradient(180deg,#021025 0%,#071226 100%);color:#e6eef7}
     .wrap{max-width:900px;margin:48px auto;padding:24px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;box-shadow:0 6px 30px rgba(2,6,23,0.6)}
     h1{margin:0 0 8px;font-size:1.4rem}
     p.lead{margin:0 0 16px;color:var(--muted)}
@@ -62,34 +61,63 @@
   </div>
 
   <script>
-    const agree=document.getElementById('agree');
-    const collectBtn=document.getElementById('collectBtn');
-    const collectLocal=document.getElementById('collectLocal');
-    const log=document.getElementById('log');
+    const agree = document.getElementById('agree');
+    const collectBtn = document.getElementById('collectBtn');
+    const collectLocal = document.getElementById('collectLocal');
+    const log = document.getElementById('log');
 
-    function appendLog(t){const e=document.createElement('div');e.textContent='['+new Date().toISOString()+'] '+t;log.prepend(e)}
+    function appendLog(txt) {
+      const line = document.createElement('div');
+      line.textContent = `[${new Date().toISOString()}] ${txt}`;
+      log.prepend(line);
+    }
 
-    function gatherBasic(){const n=navigator;return{collectedAt:new Date().toISOString(),userAgent:n.userAgent,platform:n.platform,languages:n.languages||[n.language],cores:n.hardwareConcurrency,deviceMemoryGB:n.deviceMemory,timeZone:Intl.DateTimeFormat().resolvedOptions().timeZone}};
+    function gatherBasic() {
+      const nav = navigator;
+      return {
+        collectedAt: new Date().toISOString(),
+        userAgent: nav.userAgent,
+        platform: nav.platform,
+        languages: nav.languages || [nav.language],
+        cores: nav.hardwareConcurrency,
+        deviceMemoryGB: nav.deviceMemory,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      };
+    }
 
-    async function collectAll(send){if(!agree.checked)return appendLog('Consent required');const p=gatherBasic();appendLog('Collected basic info');document.getElementById('fields').innerHTML='<div><small>'+JSON.stringify(p,null,2)+'</small></div>';if(send){await fetch('/logs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(p,null,2)}).then(r=>appendLog('Logs sent')).catch(e=>appendLog('Send failed '+e))}}
+    async function collectAll(send) {
+      if (!agree.checked) return appendLog('Consent required');
+      const payload = gatherBasic();
+      appendLog('Collected basic info');
+      document.getElementById('fields').innerHTML = '<div><small>' + JSON.stringify(payload, null, 2) + '</small></div>';
 
-    collectBtn.onclick=()=>collectAll(true);
-    collectLocal.onclick=()=>collectAll(false);
+      if (send) {
+        await fetch('/logs', {method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify(payload,null,2)})
+          .then(()=>appendLog('Logs sent'))
+          .catch(e=>appendLog('Send failed '+e));
+      }
+    }
 
-    document.getElementById('viewBtn').onclick=async()=>{
-      const key=prompt('Enter access key to view logs:');
-      if(key!=='54321'){alert('Wrong key');return;}
-      const res=await fetch('/view?key='+key);
-      if(!res.ok)return alert('Access denied');
-      const data=await res.json();
-      log.style.display='block';
-      log.innerHTML='';
-      data.forEach(d=>{
-        const div=document.createElement('div');
-        div.textContent=`${new Date(d.time).toLocaleString()} — ${d.device}`;
+    collectBtn.onclick = () => collectAll(true);
+    collectLocal.onclick = () => collectAll(false);
+
+    document.getElementById('viewBtn').onclick = async () => {
+      const key = prompt('Enter access key to view logs:').trim();
+      if (!key) return alert('Key required');
+
+      const res = await fetch('/view?key=' + encodeURIComponent(key));
+      if (!res.ok) return alert('Access Denied');
+
+      const data = await res.json();
+      log.style.display = 'block';
+      log.innerHTML = '';
+      data.forEach(d => {
+        const div = document.createElement('div');
+        div.textContent = `${new Date(d.time).toLocaleString()} — ${d.device}`;
         log.appendChild(div);
       });
-      window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+      alert('✅ Access Granted');
+      window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
     };
   </script>
 </body>
