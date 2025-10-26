@@ -11,11 +11,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const ACCESS_KEY = process.env.ACCESS_KEY || "54321";
 
-// ✅ For Render Disk support (persistent logs)
+// Directories
 const LOG_DIR = process.env.LOG_DIR || path.join(__dirname, "logs");
 const DB_FILE = path.join(__dirname, "db.json");
 
-// Ensure folders exist
+// Ensure directories exist
 fs.ensureDirSync(LOG_DIR);
 if (!fs.existsSync(DB_FILE)) fs.writeJsonSync(DB_FILE, []);
 
@@ -23,12 +23,12 @@ if (!fs.existsSync(DB_FILE)) fs.writeJsonSync(DB_FILE, []);
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// ✅ Serve main HTML file at root
+// Serve main page
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "device-logger.html"));
 });
 
-// ✅ Store logs
+// Save logs
 app.post("/logs", async (req, res) => {
   try {
     const payload = req.body;
@@ -55,9 +55,9 @@ app.post("/logs", async (req, res) => {
   }
 });
 
-// ✅ Protected logs view
+// View logs (protected)
 app.get("/view", async (req, res) => {
-  const { key } = req.query;
+  const key = (req.query.key || "").trim();
   if (key !== ACCESS_KEY) return res.status(403).send("Forbidden");
 
   const db = await fs.readJson(DB_FILE);
@@ -65,10 +65,10 @@ app.get("/view", async (req, res) => {
   res.json(db);
 });
 
-// ✅ Catch-all for any unknown route (redirect to home)
+// Redirect unknown routes to home
 app.get("*", (req, res) => {
   res.redirect("/");
 });
 
-// ✅ Start server
+// Start server
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
