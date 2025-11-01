@@ -10,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const DB_FILE = path.join(__dirname, "db.json");
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" })); // increase limit for images
 app.use(express.static(path.join(__dirname, "public")));
 
 // Ensure db.json exists and is valid
@@ -25,11 +25,12 @@ if (!fs.existsSync(DB_FILE)) {
   }
 }
 
-// POST /log → save device info
+// POST /log → save device info (with photo)
 app.post("/log", async (req, res) => {
   try {
     const logs = await fs.readJson(DB_FILE);
-    logs.push(req.body);
+    const logEntry = { ...req.body, time: new Date().toISOString() }; // ensure timestamp
+    logs.push(logEntry);
     await fs.writeJson(DB_FILE, logs, { spaces: 2 });
     res.json({ success: true });
   } catch (err) {
@@ -46,6 +47,7 @@ app.get("/view", async (req, res) => {
   }
   try {
     const logs = await fs.readJson(DB_FILE);
+    // sort newest first
     logs.sort((a, b) => new Date(b.time) - new Date(a.time));
     res.json(logs);
   } catch (err) {
